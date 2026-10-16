@@ -1,0 +1,28 @@
+{
+    "app-id" : "io.github.kirukomaru11.Media",
+    "runtime" : "org.gnome.Platform",
+    "runtime-version" : "master",
+    "sdk" : "org.gnome.Platform",
+    "command" : "media",
+    "finish-args" : [ "--device=dri", "--share=network", "--socket=pulseaudio", "--socket=wayland" ],
+    "modules" : [
+        {
+            "name" : "main",
+            "buildsystem" : "simple",
+            "build-commands" : [ "mv utils/* .", "env", "python ${FLATPAK_ID##*.}.py --install" ],
+            "sources" : [
+                {
+                    "type" : "git",
+                    "url" : "https://github.com/kirukomaru11/Media.git",
+                    "branch" : "main"
+                },
+                {
+                    "type" : "git",
+                    "url" : "https://github.com/kirukomaru11/Utils.git",
+                    "branch" : "main",
+                    "dest" : "utils"
+                }
+            ]
+        }
+    ]
+}

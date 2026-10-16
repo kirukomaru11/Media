@@ -1,7 +1,7 @@
 {
     "app-id" : "io.github.kirukomaru11.Media",
     "runtime" : "org.gnome.Platform",
-    "runtime-version" : "master",
+    "runtime-version" : "51",
     "sdk" : "org.gnome.Platform",
     "command" : "media",
     "finish-args" : [ "--device=dri", "--share=network", "--socket=pulseaudio", "--socket=wayland" ],

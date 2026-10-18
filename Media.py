@@ -1123,6 +1123,7 @@ class Artist(ListObject):
                 for i in l:
                     if i.has_artist(old_name):
                         i.artists = list_to_str([self.name if i == old_name else i for i in str_to_list(i.artists)])
+            Task.invoke(App.default.artists.do_dict)
 
     cover_paintable = GObject.Property(type=Gdk.Paintable)
     cover = GObject.Property(type=str)
@@ -1452,7 +1453,9 @@ class Playlist(ListObject):
     def name(self, value):
         old_name = self.name
         self._name = value
-        if old_name: App.default.data.update(table=self.__class__.__gtype_name__ + "s", column="Name", value=self.name, conditions="Name = ?", conds=(old_name,))
+        if old_name:
+            App.default.data.update(table=self.__class__.__gtype_name__ + "s", column="Name", value=self.name, conditions="Name = ?", conds=(old_name,))
+            Task.invoke(App.default.playlists.do_dict)
 
     cover_paintable = GObject.Property(type=Gdk.Paintable)
     list = GObject.Property(type=str)
@@ -1590,6 +1593,7 @@ class Media(ListObject):
             App.default.data.update(table="Medias", column="URI", value=value, conditions="URI = ?", conds=(old_uri,))
             for p in self.__class__.get_playlists(old_uri):
                 p.list = list_to_str([self.uri if i == old_uri else i for i in str_to_list(p.list)])
+            Task.invoke(App.default.medias.do_dict)
 
     cover = GObject.Property(type=str)
     artists = GObject.Property(type=str)
@@ -2403,9 +2407,9 @@ class App(App):
     def activate(a):
         if a.get_active_window(): return a.get_active_window().present()
         a.covers = {}
-        a.artists = List(Artist, "name", a.data.read(table="Artists", return_dict=True, force_tuple=True))
-        a.playlists = List(Playlist, "name", a.data.read(table="Playlists", return_dict=True, force_tuple=True))
-        a.medias = List(Media, "uri", a.data.read(table="Medias", return_dict=True, force_tuple=True))
+        a.artists = List(Artist, unique="name", list=a.data.read(table="Artists", return_dict=True, force_tuple=True), static=True)
+        a.playlists = List(Playlist, unique="name", list=a.data.read(table="Playlists", return_dict=True, force_tuple=True), static=True)
+        a.medias = List(Media, unique="uri", list=a.data.read(table="Medias", return_dict=True, force_tuple=True), static=True)
         d = App.default.data.read(table="Windows", column="ID")
         if isinstance(d, int):
             d = [d]

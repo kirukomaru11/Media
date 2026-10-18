@@ -2108,7 +2108,7 @@ class Window(Window):
                 if is_song or player:
                     e["Launch URI"] = "win.context::Launch URI"
                     selected = [i.uri for i in self.playlist.get_selected()] if is_song else [self.player.uri]
-                    if 50 > len(selected) and all([is_youtube(i) for i in selected]):
+                    if 50 > len(selected) and selected and all([is_youtube(i) for i in selected]):
                         e["Launch YouTube Playlist"] = "win.context::Launch YouTube Playlist"
                 menu["!x"] = Menu(e)
             if not player and current == "Artists":

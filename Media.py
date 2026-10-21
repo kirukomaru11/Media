@@ -2669,7 +2669,7 @@ def main():
                 i = f"/usr/bin/flatpak-spawn --host {i.split('/run/host/root', 1)[-1].split('/run/host', 1)[-1]}"
             result = GLib.spawn_command_line_sync(i + " --update-to master")[1].decode()
             print(result)
-            yt_dlp = i + ' -J --skip-download'
+            yt_dlp = (i + ' -J --skip-download' + " " + (GLib.getenv("YT_DLP_COMMAND") or " ")).strip()
             global json
             from json import loads as json
             break

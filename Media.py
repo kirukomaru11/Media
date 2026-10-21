@@ -840,10 +840,15 @@ class Player(MediaPlayer):
                             new = True
                         else:
                             Toast(f"yt-dlp failed: {error.decode()}", timeout=0)
+                            print(error.decode())
                             video = "none"
                     except Exception as e:
-                        try: Toast(f"yt-dlp failed: {error.decode()} {e}", timeout=0)
-                        except: Toast(f"yt-dlp failed: {e}", timeout=0)
+                        try:
+                            Toast(f"yt-dlp failed: {error.decode()} {e}", timeout=0)
+                            print(error.decode(), e)
+                        except:
+                            Toast(f"yt-dlp failed: {e}", timeout=0)
+                            print(e)
                         video = "none"
                 if video != self.uri: return
                 audio = next(reversed([i for i in (info.get("formats", []) if info else []) if i and "audio only" in i.get("format", "None") and i.get("url", "")]), {})
@@ -2667,8 +2672,9 @@ def main():
         if exists(i):
             if FLATPAK_ID and i.startswith("/run/host"):
                 i = f"/usr/bin/flatpak-spawn --host {i.split('/run/host/root', 1)[-1].split('/run/host', 1)[-1]}"
-            result = GLib.spawn_command_line_sync(i + " --update-to master")[1].decode()
-            print(result)
+            if i.startswith(App.default.data_folder.get_path()):
+                result = GLib.spawn_command_line_sync(i + " --update-to master")[1].decode()
+                print(result)
             yt_dlp = (i + ' -J --skip-download' + " " + (GLib.getenv("YT_DLP_COMMAND") or " ")).strip()
             global json
             from json import loads as json

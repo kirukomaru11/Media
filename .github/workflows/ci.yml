@@ -1,0 +1,16 @@
+name: CI
+on:
+    push:
+    pull_request:
+jobs:
+    flatpak:
+        runs-on: ubuntu-latest
+        container:
+            image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
+            options: --privileged
+        steps:
+        - uses: actions/checkout@v7
+        - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+          with:
+              bundle: ${{ github.event.repository.name }}.flatpak
+              manifest-path: io.github.${{ github.repository_owner }}.${{ github.event.repository.name }}.json

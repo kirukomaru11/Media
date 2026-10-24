@@ -74,6 +74,7 @@ class MediaPlayer(Gtk.Overlay):
 
     def __init__(self):
         picture = Gtk.Picture()
+        do_gst()
         super().__init__(css_name=self.__gtype_name__.lower(), focusable=True, child=Gtk.GraphicsOffload(child=picture))
         self.actions = Gio.SimpleActionGroup()
         self.insert_action_group(self.__gtype_name__.lower(), self.actions)
@@ -2642,6 +2643,7 @@ def call(mpris=None, _c=None, _s=None, _o=None, i="", m="", p=None, inv=None):
     if inv: inv.return_value(None)
 
 def main():
+    do_gst()
     App(info=INFO,
         shortcuts={
             "Player": {
@@ -2667,7 +2669,6 @@ def main():
         actions=(
             ("quit", App.quit_default, "<primary>q"),
         ))
-    do_gst()
     global DEFAULT_PAINTABLE
     try:
         DEFAULT_PAINTABLE = Gtk.Svg.new_from_resource("/org/gtk/libgtk/icons/folder-music-symbolic.svg")

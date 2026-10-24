@@ -78,18 +78,25 @@ class MediaPlayer(Gtk.Overlay):
         self.actions = Gio.SimpleActionGroup()
         self.insert_action_group(self.__gtype_name__.lower(), self.actions)
         r = "" if sys.platform == "linux" else "audioresample ! "
+        elements = ""
+        if Gst.ElementFactory.find("gamma"):
+            elements += "gamma name=Gamma ! "
+        if Gst.ElementFactory.find("videobalance"):
+            elements += "videobalance name=Balance ! "
         self.pipeline = pipeline = Gst.parse_launch(
             "decodebin3 name=Decode async_handling=false message_forward=false "
             "urisourcebin name=VideoURI "
             "urisourcebin name=AudioURI "
             "urisourcebin name=SubtitleURI "
-            f"textoverlay name=Video queue name=VideoQueue ! videoconvert ! gamma name=Gamma ! videobalance name=Balance ! gtk4paintablesink name=Paintable qos=false "
+            f"textoverlay name=Video queue name=VideoQueue ! videoconvert ! {elements}gtk4paintablesink name=Paintable qos=false "
             "queue name=Subtitle "
             f"queue name=Audio ! {r}audioconvert ! volume name=Volume ! audioconvert ! autoaudiosink")
         self.pipeline.set_properties(async_handling=False, message_forward=False)
         for i in self.pipeline.children: setattr(self.pipeline, i.name.lower(), i)
         picture.set_paintable(self.pipeline.paintable.get_property("paintable"))
-        for i in self.__class__.video_props: (self.pipeline.gamma if i == "gamma" else self.pipeline.balance).connect(f"notify::{i}", self.__class__.prop_flush, self)
+        for i in self.__class__.video_props:
+            e = getattr(self.pipeline, i if i == "gamma" else "balance", None)
+            if e: e.connect(f"notify::{i}", self.__class__.prop_flush, self)
         self.pipeline.video.set_property("wait-text", False)
         for i in self.__class__.subtitle_props:
             prop = self.pipeline.video.__class__.find_property(i)
@@ -442,8 +449,12 @@ class MediaPlayerOptions(Gtk.MenuButton):
         self.widgets = []
         for i in player.__class__.video_props:
             title = i.title()
-            if i == "gamma": self.widgets.append(MenuSpinRow(player.pipeline.gamma, title, i, step_increment=0.1))
-            else: self.widgets.append(MenuSpinRow(player.pipeline.balance, title, i, step_increment=0.05))
+            if i == "gamma":
+                if not getattr(player.pipeline, "gamma", False): continue
+                self.widgets.append(MenuSpinRow(player.pipeline.gamma, title, i, step_increment=0.1))
+            else:
+                if not getattr(player.pipeline, "balance", False): continue
+                self.widgets.append(MenuSpinRow(player.pipeline.balance, title, i, step_increment=0.05))
             self.video_options[title] = f"custom::{i}"
         for i in ["Volume", "Speed"]: self.widgets.append(MenuSpinRow(player, i, i.lower(), step_increment=0.1 if i == "Gamma" else 0.05))
         self.subtitle_options = {}

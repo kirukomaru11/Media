@@ -77,15 +77,15 @@ class MediaPlayer(Gtk.Overlay):
         super().__init__(css_name=self.__gtype_name__.lower(), focusable=True, child=Gtk.GraphicsOffload(child=picture))
         self.actions = Gio.SimpleActionGroup()
         self.insert_action_group(self.__gtype_name__.lower(), self.actions)
-        convert = "vapostproc" if Gst.ElementFactory.find("vapostproc") else "videoconvert"
+        r = "" if sys.platform == "linux" else "audioresample ! "
         self.pipeline = pipeline = Gst.parse_launch(
             "decodebin3 name=Decode async_handling=false message_forward=false "
             "urisourcebin name=VideoURI "
             "urisourcebin name=AudioURI "
             "urisourcebin name=SubtitleURI "
-            f"textoverlay name=Video queue name=VideoQueue ! {convert} ! gamma name=Gamma ! videobalance name=Balance ! gtk4paintablesink name=Paintable qos=false "
+            f"textoverlay name=Video queue name=VideoQueue ! videoconvert ! gamma name=Gamma ! videobalance name=Balance ! gtk4paintablesink name=Paintable qos=false "
             "queue name=Subtitle "
-            "queue name=Audio ! audioconvert ! volume name=Volume ! audioconvert ! autoaudiosink")
+            f"queue name=Audio ! {r}audioconvert ! volume name=Volume ! audioconvert ! autoaudiosink")
         self.pipeline.set_properties(async_handling=False, message_forward=False)
         for i in self.pipeline.children: setattr(self.pipeline, i.name.lower(), i)
         picture.set_paintable(self.pipeline.paintable.get_property("paintable"))
@@ -136,8 +136,7 @@ class MediaPlayer(Gtk.Overlay):
 
     @staticmethod
     def source_setup(b, source, self):
-        if hasattr(self, "user_agent") and source and source.find_property("user-agent"):
-            source.set_property("user-agent", self.user_agent)
+        if hasattr(self, "user_agent") and source and source.find_property("user-agent"): source.set_property("user-agent", self.user_agent)
         if hasattr(self, "headers") and source.find_property("extra-headers"):
             structure = Gst.Structure.new_empty("headers")
             for name, value in self.headers.items(): structure.set_value(name, get_variant(str(value)))
@@ -1830,8 +1829,7 @@ class Editor(PopupDialog):
         self.confirm = Button(callback=self.__class__.do_confirm, icon_name="list-add", tooltip_text="Add", css_classes=("flat", "suggested-action",))
         for i in (self.delete, self.confirm): header.pack_start(i)
         header.pack_end(PopupDialogButton())
-        self.window.add_css_class("editor")
-        self.dialog.add_css_class("editor")
+        self.add_css_class("editor")
 
     @staticmethod
     def playlist_filter_expression(a): return not a.get_string() in Playlist.default
@@ -2663,80 +2661,85 @@ def main():
     try:
         DEFAULT_PAINTABLE = Gtk.Svg.new_from_resource("/org/gtk/libgtk/icons/folder-music-symbolic.svg")
     except:
-        DEFAULT_PAINTABLE = Gtk.IconPaintable.new_for_file(Gio.File.new_for_path("/usr/share/icons/Adwaita/symbolic/places/folder-music-symbolic.svg"), 1, 1)
+        DEFAULT_PAINTABLE = Gtk.IconPaintable.new_for_file(Gio.File.new_for_path(Path(sys._MEIPASS if hasattr(sys, "_MEIPASS") else "usr", "share", "icons", "Adwaita", "symbolic", "places", "folder-music-symbolic.svg")), 1, 1)
     global yt_dlp
     yt_dlp = ""
-    l = ["/usr/bin", "/bin", App.default.data_folder.get_path()]
+    l = [App.default.data_folder.get_path(), "/usr/bin", "/bin"]
     if FLATPAK_ID: l.extend(["/run/host/bin", "/run/host/usr/bin", "/run/host/root/bin", "/run/host/root/usr/bin"])
     for i in l:
-        i = Path(i, "yt-dlp")
-        if exists(i):
-            if FLATPAK_ID and i.startswith("/run/host"):
-                i = f"/usr/bin/flatpak-spawn --host {i.split('/run/host/root', 1)[-1].split('/run/host', 1)[-1]}"
-            if i.startswith(App.default.data_folder.get_path()):
-                result = GLib.spawn_command_line_sync(i + " --update-to master")[1].decode()
+        files = [Path(i, "yt-dlp")]
+        if sys.platform.startswith("win"): files.append(Path(i, "yt-dlp.exe"))
+        if sys.platform == "darwin": files.append(Path(i, "yt-dlp_macos"))
+        if sys.platform == "linux": files.append(Path(i, "yt-dlp_linux"))
+        file = next((it for it in files if exists(it)), False)
+        if file:
+            if FLATPAK_ID and file.startswith("/run/host"):
+                file = f"/usr/bin/flatpak-spawn --host {file.split('/run/host/root', 1)[-1].split('/run/host', 1)[-1]}"
+            if file.startswith(App.default.data_folder.get_path()):
+                result = GLib.spawn_command_line_sync(file + f" --update-to {GLib.getenv('YT_DLP_CHANNEL') or 'master'}")[1].decode()
                 print(result)
-            yt_dlp = (i + ' -J --skip-download' + " " + (GLib.getenv("YT_DLP_COMMAND") or " ")).strip()
+            yt_dlp = (file + ' -J --skip-download' + " " + (GLib.getenv("YT_DLP_COMMAND") or " ")).strip()
             global json
             from json import loads as json
             break
     if not yt_dlp: print("No yt-dlp")
     App.default.infos = {}
     App.default.set_accels_for_action("win.show-hidden", ["<primary>h"])
-    App.default.MPRIS = DBUS(
-        { "org.freedesktop.DBus.Introspectable": {
-            "methods": { "Introspect": { "data": { "direction": "out", "type": "s" } } },
-            "signals": {},
-            "properties": {}
-         },
-        "org.freedesktop.DBus.Properties": {
-            "methods": {
-              "Set": { "interface_name": { "direction": "in", "type": "s" }, "property_name": { "direction": "in", "type": "s" }, "value": { "direction": "in", "type": "v" } },
-              "Get": { "interface_name": { "direction": "in", "type": "s" }, "property": { "direction": "in", "type": "s" }, "value": { "direction": "out", "type": "v" } },
-              "GetAll": { "interface": { "direction": "in", "type": "s" }, "properties": { "direction": "out", "type": "a{sv}" } }
-            },
-            "signals": { "PropertiesChanged": { "interface_name": "s", "changed_properties": "a{sv}", "invalidated_properties": "as" } },
-            "properties": {}
-         },
-         "org.mpris.MediaPlayer2": {
-            "methods": { "Raise": {}, "Quit": {}, },
-            "signals": {},
-            "properties": {
-                "CanQuit": { "type": "b", "access": "read" },
-                "Fullscreen": { "type": "b", "access": "readwrite" },
-                "CanSetFullscreen": { "type": "b", "access": "read" },
-                "CanRaise": { "type": "b", "access": "read" },
-                "HasTrackList": { "type": "b", "access": "read" },
-                "Identity": { "type": "s", "access": "read" },
-                "DesktopEntry": { "type": "s", "access": "read" },
-                "SupportedUriSchemes": { "type": "as", "access": "read" },
-                "SupportedMimeTypes": { "type": "as", "access": "read" } },
-            },
-         "org.mpris.MediaPlayer2.Player": {
-            "methods": {
-              "Next": {}, "Previous": {}, "Pause": {}, "Play": {}, "PlayPause": {}, "Stop": {},
-              "SetPosition": { "TrackId": { "direction": "in", "type": "o" }, "Position": { "direction": "in", "type": "x" }, },
-              "Seek": { "Offset": { "direction": "in", "type": "x" }, },
-            },
-            "signals": {},
-            "properties": {
-                "PlaybackStatus": { "type": "s", "access": "read" },
-                "CanGoNext": { "type": "b", "access": "read" },
-                "CanGoPrevious": { "type": "b", "access": "read" },
-                "CanPlay": { "type": "b", "access": "read" },
-                "CanPause": { "type": "b", "access": "read" },
-                "CanControl": { "type": "b", "access": "read" },
-                "Rate": { "type": "d", "access": "readwrite" },
-                "MinimumRate": { "type": "d", "access": "read" },
-                "MaximumRate": { "type": "d", "access": "read" },
-                "CanSeek": { "type": "b", "access": "read" },
-                "LoopStatus": { "type": "s", "access": "readwrite" },
-                "Shuffle": { "type": "b", "access": "readwrite" },
-                "Volume": { "type": "d", "access": "readwrite" },
-                "Position": { "type": "x", "access": "read" },
-                "Metadata": { "type": "a{sv}", "access": "read" }
-            }
-     }}, f"org.mpris.MediaPlayer2.{App.default.get_application_id()}", "/org/mpris/MediaPlayer2", call)
+    if sys.platform == "linux":
+        App.default.MPRIS = DBUS(
+            { "org.freedesktop.DBus.Introspectable": {
+                "methods": { "Introspect": { "data": { "direction": "out", "type": "s" } } },
+                "signals": {},
+                "properties": {}
+             },
+            "org.freedesktop.DBus.Properties": {
+                "methods": {
+                  "Set": { "interface_name": { "direction": "in", "type": "s" }, "property_name": { "direction": "in", "type": "s" }, "value": { "direction": "in", "type": "v" } },
+                  "Get": { "interface_name": { "direction": "in", "type": "s" }, "property": { "direction": "in", "type": "s" }, "value": { "direction": "out", "type": "v" } },
+                  "GetAll": { "interface": { "direction": "in", "type": "s" }, "properties": { "direction": "out", "type": "a{sv}" } }
+                },
+                "signals": { "PropertiesChanged": { "interface_name": "s", "changed_properties": "a{sv}", "invalidated_properties": "as" } },
+                "properties": {}
+             },
+             "org.mpris.MediaPlayer2": {
+                "methods": { "Raise": {}, "Quit": {}, },
+                "signals": {},
+                "properties": {
+                    "CanQuit": { "type": "b", "access": "read" },
+                    "Fullscreen": { "type": "b", "access": "readwrite" },
+                    "CanSetFullscreen": { "type": "b", "access": "read" },
+                    "CanRaise": { "type": "b", "access": "read" },
+                    "HasTrackList": { "type": "b", "access": "read" },
+                    "Identity": { "type": "s", "access": "read" },
+                    "DesktopEntry": { "type": "s", "access": "read" },
+                    "SupportedUriSchemes": { "type": "as", "access": "read" },
+                    "SupportedMimeTypes": { "type": "as", "access": "read" } },
+                },
+             "org.mpris.MediaPlayer2.Player": {
+                "methods": {
+                  "Next": {}, "Previous": {}, "Pause": {}, "Play": {}, "PlayPause": {}, "Stop": {},
+                  "SetPosition": { "TrackId": { "direction": "in", "type": "o" }, "Position": { "direction": "in", "type": "x" }, },
+                  "Seek": { "Offset": { "direction": "in", "type": "x" }, },
+                },
+                "signals": {},
+                "properties": {
+                    "PlaybackStatus": { "type": "s", "access": "read" },
+                    "CanGoNext": { "type": "b", "access": "read" },
+                    "CanGoPrevious": { "type": "b", "access": "read" },
+                    "CanPlay": { "type": "b", "access": "read" },
+                    "CanPause": { "type": "b", "access": "read" },
+                    "CanControl": { "type": "b", "access": "read" },
+                    "Rate": { "type": "d", "access": "readwrite" },
+                    "MinimumRate": { "type": "d", "access": "read" },
+                    "MaximumRate": { "type": "d", "access": "read" },
+                    "CanSeek": { "type": "b", "access": "read" },
+                    "LoopStatus": { "type": "s", "access": "readwrite" },
+                    "Shuffle": { "type": "b", "access": "readwrite" },
+                    "Volume": { "type": "d", "access": "readwrite" },
+                    "Position": { "type": "x", "access": "read" },
+                    "Metadata": { "type": "a{sv}", "access": "read" }
+                }
+         }}, f"org.mpris.MediaPlayer2.{App.default.get_application_id()}", "/org/mpris/MediaPlayer2", call)
     App.default.main(css=APP_CSS)
 
 if __name__ == "__main__": main()

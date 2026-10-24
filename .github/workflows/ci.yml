@@ -31,7 +31,7 @@ jobs:
           with:
               msystem: UCRT64
               update: true
-              install: mingw-w64-ucrt-x86_64-libadwaita mingw-w64-ucrt-x86_64-libsoup3 mingw-w64-ucrt-x86_64-libavif mingw-w64-ucrt-x86_64-libjxl mingw-w64-ucrt-x86_64-webp-pixbuf-loader mingw-w64-ucrt-x86_64-gst-libav mingw-w64-ucrt-x86_64-gst-plugins-rs mingw-w64-ucrt-x86_64-gst-plugins-ugly mingw-w64-ucrt-x86_64-python-gobject mingw-w64-ucrt-x86_64-pyinstaller mingw-w64-ucrt-x86_64-imagemagick
+              install: mingw-w64-ucrt-x86_64-libadwaita mingw-w64-ucrt-x86_64-libsoup3 mingw-w64-ucrt-x86_64-libavif mingw-w64-ucrt-x86_64-libjxl mingw-w64-ucrt-x86_64-webp-pixbuf-loader mingw-w64-ucrt-x86_64-gst-libav mingw-w64-ucrt-x86_64-gst-plugins-rs mingw-w64-ucrt-x86_64-gst-plugins-good mingw-w64-ucrt-x86_64-gst-plugins-ugly mingw-w64-ucrt-x86_64-python-gobject mingw-w64-ucrt-x86_64-pyinstaller mingw-w64-ucrt-x86_64-imagemagick
         - run: |
               cd ${{ github.event.repository.name }}
               shopt -s dotglob

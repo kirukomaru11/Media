@@ -2667,7 +2667,7 @@ def main():
         actions=(
             ("quit", App.quit_default, "<primary>q"),
         ))
-    Gst.init()
+    do_gst()
     global DEFAULT_PAINTABLE
     try:
         DEFAULT_PAINTABLE = Gtk.Svg.new_from_resource("/org/gtk/libgtk/icons/folder-music-symbolic.svg")
@@ -2687,8 +2687,12 @@ def main():
             if FLATPAK_ID and file.startswith("/run/host"):
                 file = f"/usr/bin/flatpak-spawn --host {file.split('/run/host/root', 1)[-1].split('/run/host', 1)[-1]}"
             if file.startswith(App.default.data_folder.get_path()):
-                result = GLib.spawn_command_line_sync(file + f" --update-to {GLib.getenv('YT_DLP_CHANNEL') or 'master'}")[1].decode()
-                print(result)
+                try:
+                    result, output, error, wait = GLib.spawn_command_line_sync(file + f" --update-to {GLib.getenv('YT_DLP_CHANNEL') or 'master'}")
+                    print(output.decode(), error.decode())
+                except Exception as e:
+                    try: print("Could not update yt-dlp", error.decode(), e)
+                    except: print("Could not update yt-dlp", e)
             yt_dlp = (file + ' -J --skip-download' + " " + (GLib.getenv("YT_DLP_COMMAND") or " ")).strip()
             global json
             from json import loads as json

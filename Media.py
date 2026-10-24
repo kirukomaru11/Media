@@ -5,7 +5,8 @@ except ModuleNotFoundError:
         from .Utils import *
     except ModuleNotFoundError:
         print("No Utils")
-        exit()
+        import sys
+        sys.exit()
 
 try:
     from gi.repository import Gst
@@ -13,7 +14,7 @@ except:
     Gst = False
 if not Gst:
     print("GStreamer not found")
-    exit()
+    sys.exit()
 
 class MediaPlayer(Gtk.Overlay):
     __gtype_name__ = "MediaPlayer"
@@ -2645,10 +2646,10 @@ def main():
             },
             "Window": {
                 "Edit Focused Media/Artist/Playlist": "<primary>e",
-                "Show Hidden": "win.show-hidden",
+                "Show Hidden": "<primary>h",
                 "Search": "<primary>f",
                 "Stop Search": "Escape",
-                "Quit": "app.quit",
+                "Quit": "<primary>q",
             }
         },
         activate=App.activate,

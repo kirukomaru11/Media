@@ -952,8 +952,9 @@ class Player(MediaPlayer):
     def update(self, *_):
         if not self.get_root() or not self.get_root().player: return False
         self.get_root().playlist.update()
-        for k, v in App.default.MPRIS.interfaces.items():
-            if v.get("properties", False): App.default.get_dbus_connection().emit_signal(None, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties", "PropertiesChanged", GLib.Variant.new_tuple(GLib.Variant("s", k), call(App.default.MPRIS, None, None, "", k, "GetAll", (k,), None) , GLib.Variant("as", tuple())))
+        if hasattr(getattr(App.default, "MPRIS", False), "interfaces"):
+            for k, v in App.default.MPRIS.interfaces.items():
+                if v.get("properties", False): App.default.get_dbus_connection().emit_signal(None, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties", "PropertiesChanged", GLib.Variant.new_tuple(GLib.Variant("s", k), call(App.default.MPRIS, None, None, "", k, "GetAll", (k,), None) , GLib.Variant("as", tuple())))
         return False
 
     def start_colors(self, cover=False):
@@ -1537,13 +1538,15 @@ class Playlist(ListObject):
 
     @staticmethod
     def items_changed(l, *_):
-        l = [i.name for i in l]
-        for i in PlaylistView.get_all():
-            if not i.playlist in l: i.set_playlist(Playlist.default[0])
         for w in Gtk.Window.list_toplevels():
             if isinstance(w, Window):
                 view = w.stack.get_child_by_name("Playlists")
-                if view.get_mapped() or view.catalog.get_first_child(): view.do_search()
+                for i in view.catalog:
+                    if not i.item in l: view.catalog.remove(i)
+                if view.get_mapped() or view.catalog.get_first_child(): Task.invoke(view.do_search)
+        l = [i.name for i in l]
+        for i in PlaylistView.get_all():
+            if not i.playlist in l: i.set_playlist(Playlist.default[0])
 
 class PlaylistItem(Gtk.Button):
     __gtype_name__ = "PlaylistItem"
@@ -1838,7 +1841,7 @@ class Editor(PopupDialog):
         for i in ["uri", "name_row", "cover", "hidden", "artists", "use_count", "playlists"]:
             self.rows[i] = getattr(self, i, None)
         self.delete = Button(callback=self.__class__.do_delete, icon_name="user-trash", tooltip_text="Delete", css_classes=("flat", "destructive-action",))
-        self.confirm = Button(callback=self.__class__.do_confirm, icon_name="list-add", tooltip_text="Add", css_classes=("flat", "suggested-action",))
+        self.confirm = Button(callback=self.__class__.do_confirm, icon_name="list-add", tooltip_text="Add", css_classes=("flat",))
         for i in (self.delete, self.confirm): header.pack_start(i)
         header.pack_end(PopupDialogButton())
         self.add_css_class("editor")
@@ -2218,7 +2221,7 @@ class Window(Window):
     def on_drag_source_drag_begin(e, d):
         self = e.get_widget().get_root()
         if e.w:
-            if e.w.item.cover_paintable: Gtk.DragIcon.get_for_drag(d).set_child(Gtk.Picture(paintable=Gtk.WidgetPaintable.new(e.w)))
+            if e.w.item: Gtk.DragIcon.get_for_drag(d).set_child(Gtk.Picture(paintable=Gtk.WidgetPaintable.new(e.w)))
             else: Gtk.DragIcon.get_for_drag(d).set_child(Gtk.Label(margin_top=4, margin_start=4, label=e.w.get_name(), css_classes=("title-4",), ellipsize=Pango.EllipsizeMode.END))
         elif e.f:
             l = [i.get_uri() for i in e.f]
@@ -2459,6 +2462,11 @@ CREATE TABLE IF NOT EXISTS Artists('ID' INTEGER, Name TEXT NOT NULL PRIMARY KEY,
 CREATE TABLE IF NOT EXISTS Playlists('ID' INTEGER, Name TEXT NOT NULL PRIMARY KEY, Artists TEXT DEFAULT '', List TEXT DEFAULT '', Hidden INTEGER NOT NULL DEFAULT 0, Cover TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS Medias('ID' INTEGER, URI TEXT NOT NULL PRIMARY KEY, Artists TEXT DEFAULT '', Name TEXT DEFAULT '', 'Use Count' INTEGER NOT NULL DEFAULT 0, Hidden INTEGER NOT NULL DEFAULT 0, Cover TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS Windows ('ID' INTEGER PRIMARY KEY AUTOINCREMENT, 'Default Width' INTEGER NOT NULL DEFAULT 360, 'Default Height' INTEGER NOT NULL DEFAULT 760, 'Hide On Close' INTEGER NOT NULL DEFAULT 0, 'Maximized' INTEGER NOT NULL DEFAULT 0, 'Fullscreen' INTEGER NOT NULL DEFAULT 0, 'Show Hidden' INTEGER NOT NULL DEFAULT 0, 'Player Width' INTEGER NOT NULL DEFAULT 200, 'Player Height' INTEGER NOT NULL DEFAULT 200, 'Player X' INTEGER NOT NULL DEFAULT 0, 'Player Y' INTEGER NOT NULL DEFAULT 0, 'URI' TEXT, 'Playlist' TEXT DEFAULT '{Playlist.default[0]}', 'Shuffle' INTEGER NOT NULL DEFAULT 0, 'Loop' TEXT NOT NULL DEFAULT 'None', 'Volume' INTEGER NOT NULL DEFAULT 0.8, 'Speed' INTEGER NOT NULL DEFAULT 1.0, 'Ignore Video' INTEGER NOT NULL DEFAULT 0, 'Ignore Audio' INTEGER NOT NULL DEFAULT 0, 'Ignore Subtitle' INTEGER NOT NULL DEFAULT 0, 'Ignore Cover' INTEGER NOT NULL DEFAULT 0);
+INSERT OR IGNORE INTO Playlists (Name)
+VALUES
+    ('All Media'),
+    ('Most Played'),
+    ('Recently Added');
 """
 
 INFO = {

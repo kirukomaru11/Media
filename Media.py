@@ -2697,12 +2697,12 @@ def main():
                 file = f"/usr/bin/flatpak-spawn --host {file.split('/run/host/root', 1)[-1].split('/run/host', 1)[-1]}"
             if file.startswith(App.default.data_folder.get_path()):
                 try:
-                    result, output, error, wait = GLib.spawn_command_line_sync(file + f" --update-to {GLib.getenv('YT_DLP_CHANNEL') or 'master'}")
+                    result, output, error, wait = GLib.spawn_command_line_sync(f"'{file}'" + f" --update-to {GLib.getenv('YT_DLP_CHANNEL') or 'master'}")
                     print(output.decode(), error.decode())
                 except Exception as e:
                     try: print("Could not update yt-dlp", error.decode(), e)
                     except: print("Could not update yt-dlp", e)
-            yt_dlp = (file + ' -J --skip-download' + " " + (GLib.getenv("YT_DLP_COMMAND") or " ")).strip()
+            yt_dlp = (f"'{file}'" + ' -J --skip-download' + " " + (GLib.getenv("YT_DLP_COMMAND") or " ")).strip()
             global json
             from json import loads as json
             break

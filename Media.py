@@ -17,7 +17,6 @@ if not Gst:
     sys.exit()
 
 class MediaPlayer(Gtk.Overlay):
-    __gtype_name__ = "MediaPlayer"
     tracks = ["Video", "Audio", "Subtitle"]
 
     @GObject.Property(type=float, minimum=-4.0, default=1.0, maximum=4.0)
@@ -75,9 +74,9 @@ class MediaPlayer(Gtk.Overlay):
     def __init__(self):
         picture = Gtk.Picture()
         do_gst()
-        super().__init__(css_name=self.__gtype_name__.lower(), focusable=True, child=Gtk.GraphicsOffload(child=picture))
+        super().__init__(css_name=self.__class__.__name__.lower(), focusable=True, child=Gtk.GraphicsOffload(child=picture))
         self.actions = Gio.SimpleActionGroup()
-        self.insert_action_group(self.__gtype_name__.lower(), self.actions)
+        self.insert_action_group(self.__class__.__name__.lower(), self.actions)
         r = "" if sys.platform == "linux" else "audioresample ! "
         elements = ""
         if Gst.ElementFactory.find("gamma"):
@@ -427,7 +426,6 @@ class MediaPlayer(Gtk.Overlay):
         if peer: peer.unlink(sink)
 
 class MediaPlayerOptions(Gtk.MenuButton):
-    __gtype_name__ = "MediaPlayerOptions"
     video_options = GObject.Property(type=object)
     audio_options = GObject.Property(type=object)
     subtitle_options = GObject.Property(type=object)
@@ -437,7 +435,7 @@ class MediaPlayerOptions(Gtk.MenuButton):
     def __init__(self, player):
         popover = Gtk.PopoverMenu(autohide=False)
         super().__init__(icon_name="open-menu-symbolic", tooltip_text="Options", css_classes=["flat"], popover=popover)
-        self.player_action = player.__gtype_name__.lower()
+        self.player_action = player.__class__.__name__.lower()
         self.video_options = {
             "Orientation": dict((i, f"{self.player_action}.orientation::{i}") for i in player.__class__.get_enum(player.pipeline.paintable.get_property("paintable"), "orientation"))
         }
@@ -543,15 +541,12 @@ class MediaPlayerOptions(Gtk.MenuButton):
         return Menu(m)
 
 class ShuffleButton(Gtk.ToggleButton):
-    __gtype_name__ = "Shuffle"
     def __init__(self, playlist):
         super().__init__(icon_name="media-playlist-shuffle", tooltip_text="Shuffle")
         playlist.bind_property("shuffle", self, "active", SYNC_BIND)
         self.add_css_class("shufflebutton")
 
 class LoopButton(Gtk.Button):
-    __gtype_name__ = "Loop"
-
     loops = { "None": "consecutive", "Track": "repeat-song", "Playlist": "repeat" }
 
     def __init__(self, playlist):
@@ -570,7 +565,6 @@ class LoopButton(Gtk.Button):
         b.get_root().playlist.loop = "Track" if v == "None" else "Playlist" if v == "Track" else "None"
 
 class FullscreenButton(Gtk.Button):
-    __gtype_name__ = "Fullscreen"
     def __init__(self, player):
         super().__init__()
         self.connect("clicked", self.__class__.clicked)
@@ -588,23 +582,20 @@ class FullscreenButton(Gtk.Button):
         player.fullscreen = not player.fullscreen
 
 class PreviousButton(Gtk.Button):
-    __gtype_name__ = "Previous"
     def __init__(self, playlist):
-        super().__init__(icon_name="media-skip-backward", tooltip_text=self.__gtype_name__)
+        super().__init__(icon_name="media-skip-backward", tooltip_text="Previous")
         self.add_css_class("previousbutton")
         self.connect("clicked", playlist.__class__.previous)
-        playlist.bind_property(f"can-go-{self.__gtype_name__.lower()}", self, "sensitive", DEFAULT_BIND)
+        playlist.bind_property("can-go-previous", self, "sensitive", DEFAULT_BIND)
 
 class NextButton(Gtk.Button):
-    __gtype_name__ = "Next"
     def __init__(self, playlist):
-        super().__init__(icon_name="media-skip-forward", tooltip_text=self.__gtype_name__)
+        super().__init__(icon_name="media-skip-forward", tooltip_text="Next")
         self.add_css_class("nextbutton")
         self.connect("clicked", playlist.__class__.next)
-        playlist.bind_property(f"can-go-{self.__gtype_name__.lower()}", self, "sensitive", DEFAULT_BIND)
+        playlist.bind_property("can-go-next", self, "sensitive", DEFAULT_BIND)
 
 class OptionsButton(MediaPlayerOptions):
-    __gtype_name__ = "Options"
     def __init__(self, player):
         super().__init__(player)
         self.add_css_class("optionsbutton")
@@ -614,7 +605,6 @@ class OptionsButton(MediaPlayerOptions):
         self.options = {}
 
 class Controls(Adw.BreakpointBin):
-    __gtype_name__ = "Controls"
     seekbar = GObject.Property(type=MediaSeekbar)
     volume = GObject.Property(type=VolumeButton)
     speed = GObject.Property(type=SpeedButton)
@@ -661,8 +651,6 @@ class Controls(Adw.BreakpointBin):
     def offset_bind(b, v): return v * 1e9
 
 class PlayerOverlay(Adw.Bin):
-    __gtype_name__ = "PlayerOverlay"
-
     x = GObject.Property(type=int)
     y = GObject.Property(type=int)
 
@@ -670,7 +658,7 @@ class PlayerOverlay(Adw.Bin):
     height = GObject.Property(type=int, default=200)
 
     def __init__(self, window):
-        super().__init__(css_name=self.__class__.__gtype_name__.lower(), overflow=Gtk.Overflow.HIDDEN)
+        super().__init__(css_name=self.__class__.__name__.lower(), overflow=Gtk.Overflow.HIDDEN)
         window.get_content().get_first_child().get_content().connect("get-child-position", self.__class__.get_child_position)
         window.get_content().get_first_child().get_content().add_overlay(self)
         Window.controller_init(self)
@@ -730,8 +718,6 @@ class PlayerOverlay(Adw.Bin):
         self.set_cursor(Gdk.Cursor.new_from_name(f"{self.corner}-resize", None) if self.corner else None)
 
 class Player(MediaPlayer):
-    __gtype_name__ = "Player"
-
     controls = GObject.Property(type=Controls)
     cover = GObject.Property(type=Gdk.Paintable)
     spinner = GObject.Property(type=Gdk.Paintable)
@@ -1006,7 +992,6 @@ class Player(MediaPlayer):
         self.overlay.set_visible(self.get_visible() and not self.small)
 
 class View(Adw.Bin):
-    __gtype_name__ = "View"
     default = ["Artists", "Playlists", "Playlist"]
     search = GObject.Property(type=str)
     status = GObject.Property(type=Adw.StatusPage)
@@ -1057,7 +1042,6 @@ class View(Adw.Bin):
         self.get_root().status()
 
 class SinglesItem(Gtk.Button):
-    __gtype_name__ = "SinglesItem"
     filter = GObject.Property(type=Gtk.CustomFilter)
     def __init__(self, l, p=None, **kwargs):
         super().__init__(tooltip_text="Singles", child=Gtk.Picture(focusable=True, paintable=p or DEFAULT_PAINTABLE), overflow=Gtk.Overflow.HIDDEN, **kwargs)
@@ -1076,9 +1060,8 @@ class SinglesItem(Gtk.Button):
     def do_filter(media, l): return media in l
 
 class ArtistViewRow(Gtk.Box):
-    __gtype_name__ = "ArtistViewRow"
     def __init__(self, title="", children=None):
-        super().__init__(css_name=self.__gtype_name__.lower(), orientation=Gtk.Orientation.VERTICAL)
+        super().__init__(css_name=self.__class__.__name__.lower(), orientation=Gtk.Orientation.VERTICAL)
         self.append(Gtk.Label(label=title, css_classes=["title-3"]))
         p = Adw.Carousel(spacing=10)
         if children:
@@ -1086,7 +1069,6 @@ class ArtistViewRow(Gtk.Box):
         self.append(Adw.Clamp(child=p, tightening_threshold=400, maximum_size=400, orientation=Gtk.Orientation.VERTICAL))
 
 class ArtistView(View):
-    __gtype_name__ = "ArtistView"
     prefix = "artist-"
     def __init__(self, window, artist):
         playlists = dict((i.name, i) for i in window.get_application().playlists if i.has_artist(artist.name))
@@ -1109,7 +1091,7 @@ class ArtistView(View):
             if featured: box.append(ArtistViewRow("Featured", [PlaylistItem(window, window.get_application().playlists[i]) for i in featured]))
         else:
             child = Adw.StatusPage(icon_name="avatar-default-symbolic", title="Empty")
-        View.__init__(self, window, child=child, css_name=self.__gtype_name__.lower(), has_search=False)
+        View.__init__(self, window, child=child, css_name=self.__class__.__name__.lower(), has_search=False)
         self.set_name(artist.name)
         window.stack.add_titled_with_icon(self, self.__class__.prefix + self.get_name(), self.get_name(), "avatar-default-symbolic")
         window.stack.set_visible_child(self)
@@ -1124,8 +1106,6 @@ class ArtistView(View):
         return l
 
 class Artist(ListObject):
-    __gtype_name__ = "Artist"
-
     id = GObject.Property(type=int, nick="ID", default=0)
 
     @GObject.Property(type=str)
@@ -1136,7 +1116,7 @@ class Artist(ListObject):
         old_name = self.name
         self._name = value
         if old_name:
-            App.default.data.update(table=self.__class__.__gtype_name__ + "s", column="Name", value=self.name, conditions="Name = ?", conds=(old_name,))
+            App.default.data.update(table=self.__class__.__name__ + "s", column="Name", value=self.name, conditions="Name = ?", conds=(old_name,))
             for l in (App.default.medias, App.default.playlists):
                 for i in l:
                     if i.has_artist(old_name):
@@ -1160,7 +1140,7 @@ class Artist(ListObject):
         if p.get_name() == "cover-paintable": return
         v = getattr(self, p.get_name(), None)
         p = p.get_nick() or p.get_name().replace("-", " ").title()
-        t = self.__class__.__gtype_name__ + "s"
+        t = self.__class__.__name__ + "s"
         c = "Name = ?"
         if p == "Cover":
             self.cover_paintable = None
@@ -1221,7 +1201,6 @@ class Artist(ListObject):
                     i.artists = list_to_str(new)
 
 class ArtistItem(Gtk.Button):
-    __gtype_name__ = "ArtistItem"
     item = GObject.Property(type=Artist)
     def __init__(self, window, i, small=False, **kwargs):
         super().__init__(overflow=Gtk.Overflow.HIDDEN, child=Adw.Avatar(show_initials=True, size=40 if small else 262), **kwargs)
@@ -1259,8 +1238,6 @@ class ArtistItem(Gtk.Button):
         return l
 
 class PlaylistView(View):
-    __gtype_name__ = "PlaylistView"
-
     icon = GObject.Property(type=str)
 
     selection = GObject.Property(type=Gtk.MultiSelection)
@@ -1458,8 +1435,6 @@ class PlaylistView(View):
         Task.invoke(self.set_selected, self.get_root().player.uri)
 
 class Playlist(ListObject):
-    __gtype_name__ = "Playlist"
-
     default = ["All Media", "Most Played", "Recently Added"]
 
     id = GObject.Property(type=int, nick="ID", default=0)
@@ -1472,7 +1447,7 @@ class Playlist(ListObject):
         old_name = self.name
         self._name = value
         if old_name:
-            App.default.data.update(table=self.__class__.__gtype_name__ + "s", column="Name", value=self.name, conditions="Name = ?", conds=(old_name,))
+            App.default.data.update(table=self.__class__.__name__ + "s", column="Name", value=self.name, conditions="Name = ?", conds=(old_name,))
             Task.invoke(App.default.playlists.do_dict)
 
     cover_paintable = GObject.Property(type=Gdk.Paintable)
@@ -1500,7 +1475,7 @@ class Playlist(ListObject):
         if p.get_name() == "cover-paintable": return
         v = getattr(self, p.get_name(), None)
         p = p.get_nick() or p.get_name().replace("-", " ").title()
-        t = self.__class__.__gtype_name__ + "s"
+        t = self.__class__.__name__ + "s"
         c = "Name = ?"
         if p == "Cover":
             self.cover_paintable = None
@@ -1549,7 +1524,6 @@ class Playlist(ListObject):
             if not i.playlist in l: i.set_playlist(Playlist.default[0])
 
 class PlaylistItem(Gtk.Button):
-    __gtype_name__ = "PlaylistItem"
     item = GObject.Property(type=Playlist)
     def __init__(self, window, i, **kwargs):
         super().__init__(overflow=Gtk.Overflow.HIDDEN, child=Gtk.Picture(), **kwargs)
@@ -1597,7 +1571,6 @@ class PlaylistItem(Gtk.Button):
         return l
 
 class Media(ListObject):
-    __gtype_name__ = "MediaObject"
     id = GObject.Property(type=int, nick="ID", default=0)
 
     def __repr__(self): return self.uri
@@ -1692,8 +1665,6 @@ class Media(ListObject):
         return v
 
 class MediaWidget(Gtk.Label):
-    __gtype_name__ = "MediaWidget"
-
     factory = Gtk.SignalListItemFactory.new()
 
     @GObject.Property(type=Media)
@@ -1728,8 +1699,6 @@ MediaWidget.factory.connect("setup", MediaWidget.setup)
 MediaWidget.factory.connect("teardown", MediaWidget.teardown)
 
 class Context(Gtk.PopoverMenu):
-    __gtype_name__ = "Context"
-
     widget = GObject.Property(type=Gtk.Widget)
 
     def __init__(self): super().__init__(has_arrow=False, width_request=100)
@@ -1795,7 +1764,6 @@ class Context(Gtk.PopoverMenu):
             launch(f"https://www.youtube.com/watch_videos?video_ids={','.join([youtube_id(i) for i in selected])}")
 
 class Editor(PopupDialog):
-    __gtype_name__ = "Editor"
     type = GObject.Property(type=str)
     ready = GObject.Property(type=bool, default=False)
 
@@ -1976,7 +1944,6 @@ class Editor(PopupDialog):
         for n, i in enumerate(self.rows.values()): i.set_visible(True)
 
 class Window(Window):
-    __gtype_name__ = "Window"
     back_button = GObject.Property(type=bool, default=False)
 
     show_hidden = GObject.Property(type=bool, default=False)
@@ -2335,7 +2302,7 @@ class Window(Window):
             if v.get_name() in Playlist.default:
                 self.delete = ""
             else:
-                self.delete = f"Delete {v.__class__.__gtype_name__}"
+                self.delete = f"Delete {v.__class__.__name__}"
             if not self.highlight:
                 if w and w.get_ancestor(Gtk.ListView):
                     if isinstance(v, PlaylistItem) and self.playlist.playlist == v.get_name(): return Gdk.DragAction.NONE
@@ -2414,7 +2381,6 @@ class Window(Window):
         if v == Gdk.KEY_f: self.lookup_action("maximized").activate()
 
 class App(App):
-    __gtype_name__ = "App"
     artists = GObject.Property(type=List)
     playlists = GObject.Property(type=List)
     medias = GObject.Property(type=List)

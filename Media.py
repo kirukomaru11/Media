@@ -1664,39 +1664,16 @@ class Media(ListObject):
         v = v.replace("\n", "")
         return v
 
-class MediaWidget(Gtk.Label):
-    factory = Gtk.SignalListItemFactory.new()
+class MediaWidget(ListItem):
+    def __init__(self): super().__init__(child=Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END, lines=0, single_line_mode=True), focusable=True)
 
-    @GObject.Property(type=Media)
-    def media(self): return getattr(self, "_media", None)
-
-    @media.setter
-    def media(self, value):
-        self._media = value
-        for i in getattr(self, "bindings", []): i.unbind()
-        if self.media:
-            self.bindings = [self.media.bind_property("name", self, "label", DEFAULT_BIND, self.__class__.bind_label), self.media.bind_property("uri", self, "name", DEFAULT_BIND)]
-
-    def __init__(self): super().__init__(xalign=0, ellipsize=Pango.EllipsizeMode.END, lines=0, single_line_mode=True)
+    def bind(self):
+        self.bindings = [self.item.bind_property("name", self.get_child(), "label", DEFAULT_BIND, MediaWidget.bind_label), self.item.bind_property("uri", self, "name", DEFAULT_BIND)]
 
     @staticmethod
     def bind_label(b, v):
         t = b.get_property("source")
         return Media.get_name(t)
-
-    @staticmethod
-    def setup(f, l):
-        l.set_child(MediaWidget())
-        l.bind_property("item", l.get_child(), "media", DEFAULT_BIND)
-
-    @staticmethod
-    def teardown(f, l):
-        if l.get_child():
-            l.get_child().media = None
-        l.set_child(None)
-
-MediaWidget.factory.connect("setup", MediaWidget.setup)
-MediaWidget.factory.connect("teardown", MediaWidget.teardown)
 
 class Context(Gtk.PopoverMenu):
     widget = GObject.Property(type=Gtk.Widget)
@@ -1741,7 +1718,7 @@ class Context(Gtk.PopoverMenu):
                     name = item.name
                     editor.show_artist(item)
                 elif widget.get_ancestor(PlaylistView):
-                    item = App.default.medias[widget.get_name()]
+                    item = widget.item
                     name = item.uri if item else None
                     if item: editor.show_media(item)
                 elif widget.get_ancestor(Player):
@@ -2075,14 +2052,11 @@ class Window(Window):
     def on_click(*args):
         self, e, n, x, y, signal, b, state = Window.click_to_args(*args)
         if self.context and self.context.get_mapped(): return self.context.popdown()
-        w = self.pick(x, y, Gtk.PickFlags.DEFAULT)
+        w = self.get_widget(self.pick(x, y, Gtk.PickFlags.DEFAULT))
         if not w: return
-        player = w.get_ancestor(Player)
-        if b == 1 and player and n == 2 and signal == "pressed":
-            if player.overlay.get_mapped(): self.set_property("maximized", not self.get_property("maximized"))
+        if b == 1 and isinstance(w, Player) and n == 2 and signal == "pressed":
+            if self.player.overlay.get_mapped(): self.set_property("maximized", not self.get_property("maximized"))
             return
-        playlist = w.get_ancestor(PlaylistItem)
-        artist = w.get_ancestor(ArtistItem)
         if signal != "released": return
         if b == 8: return call(m="Previous")
         elif b == 9: return call(m="Next")
@@ -2092,20 +2066,19 @@ class Window(Window):
             menu = {}
             current = self.stack.get_visible_child_name()
             m = {}
-            is_song = w.get_parent() and isinstance(w, MediaWidget)
-            if artist or playlist or is_song or player:
+            if isinstance(w, ArtistItem) or isinstance(w, PlaylistItem) or isinstance(w, MediaWidget) or isinstance(w, Player):
                 e = {"Edit": "win.context::Edit"}
-                if is_song or player:
+                if isinstance(w, MediaWidget) or isinstance(w, Player):
                     e["Launch URI"] = "win.context::Launch URI"
-                    selected = [i.uri for i in self.playlist.get_selected()] if is_song else [self.player.uri]
+                    selected = [i.uri for i in self.playlist.get_selected()] if isinstance(w, MediaWidget) else [self.player.uri]
                     if 50 > len(selected) and selected and all([is_youtube(i) for i in selected]):
                         e["Launch YouTube Playlist"] = "win.context::Launch YouTube Playlist"
                 menu["!x"] = Menu(e)
-            if not player and current == "Artists":
+            if not isinstance(w, Player) and current == "Artists":
                 m["Add Artist"] = "win.context::Add Artist"
-            if not player and current == "Playlists":
+            if not isinstance(w, Player) and current == "Playlists":
                 m["Add Playlist"] = "win.context::Add Playlist"
-            if player or current == "Playlist":
+            if isinstance(w, Player) or current == "Playlist":
                 m["Add Medias"] = "win.context::Add Medias"
             if m:
                 menu["!z"] = Menu(m)
@@ -2155,24 +2128,22 @@ class Window(Window):
         self = e.get_widget().get_root()
         if isinstance(self.stack.get_visible_child(), ArtistView): return None
         self.clear_drop()
-        w = self.pick(x, y, Gtk.PickFlags.DEFAULT)
-        if w and w.get_ancestor(Player) or getattr(self.player.overlay, "dragging", False): return None
+        w = self.get_widget(self.pick(x, y, Gtk.PickFlags.DEFAULT))
+        if isinstance(w, Player) or getattr(self.player.overlay, "dragging", False): return None
         e.f = []
         c = None
         if isinstance(w, MediaWidget):
-            l = [i.uri for i in self.playlist.get_selected()]
-            if not w.get_name() in l:
-                self.playlist.set_selected(w.get_name())
-                e.f = [Gio.File.new_for_uri(w.get_name())]
+            l = [i for i in self.playlist.get_selected()]
+            if not w.item in l:
+                self.playlist.set_selected(w.item)
+                e.f = [Gio.File.new_for_uri(w.item.uri)]
             else:
-                e.f = [Gio.File.new_for_uri(i) for i in l]
+                e.f = [Gio.File.new_for_uri(i.uri) for i in l]
             c = Gdk.ContentProvider.new_for_value(Gdk.FileList.new_from_list(e.f)) if e.f else None
             w = None
-        if w and w.get_ancestor(ArtistItem):
-            w = w.get_ancestor(ArtistItem)
+        if isinstance(w, ArtistItem):
             e.f = [Gio.File.new_for_uri(i.uri) for i in self.get_application().medias if i.has_artist(w.get_name())]
-        if w and w.get_ancestor(PlaylistItem):
-            w = w.get_ancestor(PlaylistItem)
+        if isinstance(w, PlaylistItem):
             e.f = [Gio.File.new_for_uri(i.uri) for i in self.get_application().medias if i.has_playlist(w.get_name())]
         if isinstance(w, ArtistItem) or isinstance(w, PlaylistItem):
             l = [w]
@@ -2209,11 +2180,9 @@ class Window(Window):
     @staticmethod
     def on_drop_target_drop(e, v, x, y):
         self = e.get_widget().get_root()
-        w = self.pick(x, y, Gtk.PickFlags.DEFAULT)
+        w = self.get_widget(self.pick(x, y, Gtk.PickFlags.DEFAULT))
         b = None
         if w:
-            w = w.get_ancestor(ArtistItem) or w
-            w = w.get_ancestor(PlaylistItem) or w
             b = w.get_ancestor(Gtk.Button)
         is_delete = b and b.get_tooltip_text() == self.delete
         if isinstance(v, ArtistItem) or isinstance(v, PlaylistItem):
@@ -2249,7 +2218,7 @@ class Window(Window):
             l = [self.playlist.selection.get_item(n) for n in range(self.playlist.selection.get_n_items())]
             v = [self.get_application().medias[i] for i in v]
             v = [i for i in v if i and i in l]
-            start = l.index(w.media)
+            start = l.index(w.item)
             for i in v:
                 l.remove(i)
                 l.insert(start, i)
@@ -2280,16 +2249,23 @@ class Window(Window):
         return True
 
     @staticmethod
+    def get_widget(w):
+        if not w: return
+        w = w.get_ancestor(Player) or w
+        w = w.get_ancestor(MediaWidget) or w
+        w = w.get_ancestor(ArtistItem) or w
+        w = w.get_ancestor(PlaylistItem) or w
+        return w
+
+    @staticmethod
     def on_drop_target_motion(e, x, y):
         self = e.get_widget().get_root()
         self.clear_drop(False)
         a = Gdk.DragAction.COPY
-        w = self.pick(x, y, Gtk.PickFlags.DEFAULT)
+        w = self.get_widget(self.pick(x, y, Gtk.PickFlags.DEFAULT))
         v = e.get_value()
         b = None
         if w:
-            w = w.get_ancestor(ArtistItem) or w
-            w = w.get_ancestor(PlaylistItem) or w
             b = w.get_ancestor(Gtk.Button)
         is_delete = b and type(b) == Gtk.Button and b.get_tooltip_text() == self.delete
         if isinstance(v, PlaylistItem) or isinstance(v, ArtistItem):
@@ -2350,9 +2326,11 @@ class Window(Window):
             return True
         f = self.get_focus()
         if isinstance(f, Gtk.Editable) or isinstance(f, Gtk.TextView): return
-        is_media = f and isinstance(f.get_first_child(), MediaWidget)
-        if is_media and Gdk.ModifierType.CONTROL_MASK in s and v in (Gdk.KEY_e, Gdk.KEY_E):
-            Context.action(f.get_first_child() if is_media else f, "Edit")
+        if f and isinstance(f.get_parent(), Gtk.ListView):
+            f = f.get_first_child()
+        f = self.get_widget(f)
+        if Gdk.ModifierType.CONTROL_MASK in s and v in (Gdk.KEY_e, Gdk.KEY_E) and (isinstance(f, MediaWidget) or isinstance(f, ArtistItem) or isinstance(f, PlaylistItem)):
+            Context.action(f, "Edit")
             return True
         if self.player.uri and s == Gdk.ModifierType.SHIFT_MASK:
             if v in (Gdk.KEY_D, Gdk.KEY_d):

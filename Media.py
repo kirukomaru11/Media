@@ -627,7 +627,7 @@ class Controls(Adw.BreakpointBin):
         start_box, center_box, end_box = [Gtk.Box(valign=Gtk.Align.END) for _ in range(3)]
         breakpoints = [Adw.Breakpoint.new(Adw.BreakpointCondition.new_length(Adw.BreakpointConditionLengthType.MAX_WIDTH, 700, Adw.LengthUnit.PX))]
         for i in (start_box, end_box): breakpoints[0].add_setter(i, "orientation", Gtk.Orientation.VERTICAL)
-        buttons_box = Gtk.CenterBox(css_name="centerbox", vexpand=True, hexpand=True, start_widget=start_box, center_widget=center_box, end_widget=end_box)
+        buttons_box = Gtk.CenterBox(css_name="center-box", vexpand=True, hexpand=True, start_widget=start_box, center_widget=center_box, end_widget=end_box)
         for i in breakpoints: self.add_breakpoint(i)
         self.options = OptionsButton(player)
         for i in (self.volume, self.speed, self.options):
@@ -658,7 +658,7 @@ class PlayerOverlay(Adw.Bin):
     height = GObject.Property(type=int, default=200)
 
     def __init__(self, window):
-        super().__init__(css_name=self.__class__.__name__.lower(), overflow=Gtk.Overflow.HIDDEN)
+        super().__init__(css_name="player-overlay", overflow=Gtk.Overflow.HIDDEN)
         window.get_content().get_first_child().get_content().connect("get-child-position", self.__class__.get_child_position)
         window.get_content().get_first_child().get_content().add_overlay(self)
         Window.controller_init(self)
@@ -1061,7 +1061,7 @@ class SinglesItem(Gtk.Button):
 
 class ArtistViewRow(Gtk.Box):
     def __init__(self, title="", children=None):
-        super().__init__(css_name=self.__class__.__name__.lower(), orientation=Gtk.Orientation.VERTICAL)
+        super().__init__(css_name="artist-view-row", orientation=Gtk.Orientation.VERTICAL)
         self.append(Gtk.Label(label=title, css_classes=["title-3"]))
         p = Adw.Carousel(spacing=10)
         if children:
@@ -1091,7 +1091,7 @@ class ArtistView(View):
             if featured: box.append(ArtistViewRow("Featured", [PlaylistItem(window, window.get_application().playlists[i]) for i in featured]))
         else:
             child = Adw.StatusPage(icon_name="avatar-default-symbolic", title="Empty")
-        View.__init__(self, window, child=child, css_name=self.__class__.__name__.lower(), has_search=False)
+        View.__init__(self, window, child=child, css_name="artist-view", has_search=False)
         self.set_name(artist.name)
         window.stack.add_titled_with_icon(self, self.__class__.prefix + self.get_name(), self.get_name(), "avatar-default-symbolic")
         window.stack.set_visible_child(self)
@@ -1124,8 +1124,10 @@ class Artist(ListObject):
             Task.invoke(App.default.artists.do_dict)
 
     cover_paintable = GObject.Property(type=Gdk.Paintable)
-    cover = GObject.Property(type=str)
+    cover = GObject.Property(type=str, default="")
     hidden = GObject.Property(type=bool, default=False)
+
+    properties = ["id", "name", "hidden", "cover"]
 
     @staticmethod
     def arg_to_name(a):
@@ -1437,6 +1439,8 @@ class PlaylistView(View):
 class Playlist(ListObject):
     default = ["All Media", "Most Played", "Recently Added"]
 
+    properties = ["id", "name", "artists", "list", "hidden", "cover"]
+
     id = GObject.Property(type=int, nick="ID", default=0)
 
     @GObject.Property(type=str)
@@ -1451,9 +1455,9 @@ class Playlist(ListObject):
             Task.invoke(App.default.playlists.do_dict)
 
     cover_paintable = GObject.Property(type=Gdk.Paintable)
-    list = GObject.Property(type=str)
-    artists = GObject.Property(type=str)
-    cover = GObject.Property(type=str)
+    list = GObject.Property(type=str, default="")
+    artists = GObject.Property(type=str, default="")
+    cover = GObject.Property(type=str, default="")
     hidden = GObject.Property(type=bool, default=False)
 
     def has_artist(self, artist=""):
@@ -1575,7 +1579,7 @@ class Media(ListObject):
 
     def __repr__(self): return self.uri
 
-    @GObject.Property(type=str)
+    @GObject.Property(type=str, nick="URI")
     def uri(self): return getattr(self, "_uri", "")
 
     @uri.setter
@@ -1588,9 +1592,11 @@ class Media(ListObject):
                 p.list = list_to_str([self.uri if i == old_uri else i for i in str_to_list(p.list)])
             Task.invoke(App.default.medias.do_dict)
 
-    cover = GObject.Property(type=str)
-    artists = GObject.Property(type=str)
-    name = GObject.Property(type=str)
+    properties = ["id", "uri", "artists", "name", "use_count", "hidden", "cover"]
+
+    cover = GObject.Property(type=str, default="")
+    artists = GObject.Property(type=str, default="")
+    name = GObject.Property(type=str, default="")
     use_count = GObject.Property(type=int)
     hidden = GObject.Property(type=bool, default=False)
 
@@ -1665,7 +1671,8 @@ class Media(ListObject):
         return v
 
 class MediaWidget(ListItem):
-    def __init__(self): super().__init__(child=Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END, lines=0, single_line_mode=True), focusable=True)
+    parent_options = False
+    def __init__(self): super().__init__(css_name="media-widget", child=Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END, lines=0, single_line_mode=True))
 
     def bind(self):
         self.bindings = [self.item.bind_property("name", self.get_child(), "label", DEFAULT_BIND, MediaWidget.bind_label), self.item.bind_property("uri", self, "name", DEFAULT_BIND)]
@@ -2401,17 +2408,14 @@ class App(App):
         if not Window.current: activate(App.default)
         Window.current.open_files([i if isinstance(i, str) else i.get_uri() for i in files])
 
-DATA_INIT = f"""
-CREATE TABLE IF NOT EXISTS Artists('ID' INTEGER, Name TEXT NOT NULL PRIMARY KEY, Hidden INTEGER NOT NULL DEFAULT 0, Cover TEXT DEFAULT '');
-CREATE TABLE IF NOT EXISTS Playlists('ID' INTEGER, Name TEXT NOT NULL PRIMARY KEY, Artists TEXT DEFAULT '', List TEXT DEFAULT '', Hidden INTEGER NOT NULL DEFAULT 0, Cover TEXT DEFAULT '');
-CREATE TABLE IF NOT EXISTS Medias('ID' INTEGER, URI TEXT NOT NULL PRIMARY KEY, Artists TEXT DEFAULT '', Name TEXT DEFAULT '', 'Use Count' INTEGER NOT NULL DEFAULT 0, Hidden INTEGER NOT NULL DEFAULT 0, Cover TEXT DEFAULT '');
+DATA_INIT = (Artist, Playlist, Media, f"""
 CREATE TABLE IF NOT EXISTS Windows ('ID' INTEGER PRIMARY KEY AUTOINCREMENT, 'Default Width' INTEGER NOT NULL DEFAULT 360, 'Default Height' INTEGER NOT NULL DEFAULT 760, 'Hide On Close' INTEGER NOT NULL DEFAULT 0, 'Maximized' INTEGER NOT NULL DEFAULT 0, 'Fullscreen' INTEGER NOT NULL DEFAULT 0, 'Show Hidden' INTEGER NOT NULL DEFAULT 0, 'Player Width' INTEGER NOT NULL DEFAULT 200, 'Player Height' INTEGER NOT NULL DEFAULT 200, 'Player X' INTEGER NOT NULL DEFAULT 0, 'Player Y' INTEGER NOT NULL DEFAULT 0, 'URI' TEXT, 'Playlist' TEXT DEFAULT '{Playlist.default[0]}', 'Shuffle' INTEGER NOT NULL DEFAULT 0, 'Loop' TEXT NOT NULL DEFAULT 'None', 'Volume' INTEGER NOT NULL DEFAULT 0.8, 'Speed' INTEGER NOT NULL DEFAULT 1.0, 'Ignore Video' INTEGER NOT NULL DEFAULT 0, 'Ignore Audio' INTEGER NOT NULL DEFAULT 0, 'Ignore Subtitle' INTEGER NOT NULL DEFAULT 0, 'Ignore Cover' INTEGER NOT NULL DEFAULT 0);
 INSERT OR IGNORE INTO Playlists (Name)
 VALUES
     ('All Media'),
     ('Most Played'),
     ('Recently Added');
-"""
+""")
 
 INFO = {
     "ID": "io.github.kirukomaru11.Media",
@@ -2436,8 +2440,8 @@ popover .delay > :last-child { margin: 2px 0px; }
 player controls { color: white; background: linear-gradient(to top, color-mix(in srgb, black 50%, transparent), transparent); padding: 6px 7px; opacity: 0; transition: opacity 0.5s; min-width: 230px; min-height: 158px; }
 player controls:hover { opacity: 1; }
 player controls > box { border-spacing: 14px; }
-player controls centerbox > box,
-player controls centerbox > box > box { border-spacing: 6px; }
+player controls center-box > box,
+player controls center-box > box > box { border-spacing: 6px; }
 player controls .playbackbutton { margin: 0px 14px 0px 14px; transform: scale(1.6); }
 player controls .nextbutton,
 player controls .previousbutton { transform: scale(1.2); }
@@ -2445,13 +2449,13 @@ player controls .previousbutton { transform: scale(1.2); }
 player.no-cover { background: black; color: white; }
 player.no-cover picture { -gtk-icon-transform: scale(0.65); }
 
-playeroverlay { border-radius: 10px; backdrop-filter: blur(10px); box-shadow: 0 0 14px 5px rgba(0,0,0,0), 0 0 10px 5px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05); }
-playeroverlay > player,
-playeroverlay > player.no-cover { background: none; }
+player-overlay { border-radius: 10px; backdrop-filter: blur(10px); box-shadow: 0 0 14px 5px rgba(0,0,0,0), 0 0 10px 5px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.05); }
+player-overlay > player,
+player-overlay > player.no-cover { background: none; }
 @media not (prefers-color-scheme: dark) {
-    playeroverlay > player.no-cover { color: black; }
+    player-overlay > player.no-cover { color: black; }
 }
-playeroverlay > player.no-cover picture { -gtk-icon-transform: scale(0.7); }
+player-overlay > player.no-cover picture { -gtk-icon-transform: scale(0.7); }
 
 .mediaseekbar { padding: 0px; }
 .mediaseekbar mark label { font-size: 0px; transition: all 0.3s; }
@@ -2463,14 +2467,14 @@ window #Artists viewport > wrap-box { margin: 10px; }
 window.media-window { min-width: 290px; min-height: 300px; }
 
 listview row { padding: 0px; margin-bottom: 6px; }
-listview label { padding: 10px 12px; border-radius: 8px; }
 listview row:selected label { font-weight: bold; }
 .colored listview row:selected { background-color: color-mix(in srgb, var(--color-2) 45%, transparent); }
+listview media-widget { border-radius: 8px; padding: 10px 12px; }
 
 :drop(active) .highlight { box-shadow: 0 0 0 2px var(--accent-bg-color); }
 
-artistview viewport > box { padding: 10px 0px; }
-artistview carousel { padding: 10px 0px; }
+artist-view viewport > box { padding: 10px 0px; }
+artist-view carousel { padding: 10px 0px; }
 
 button.artist,
 button.single,

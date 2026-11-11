@@ -1969,7 +1969,7 @@ class Window(Window):
         toolbar = Adw.ToolbarView(content=Gtk.Overlay(child=self.stack))
         self.set_content(Gtk.Box(orientation=Gtk.Orientation.VERTICAL))
         self.get_content().append(toolbar)
-        self.search = Gtk.SearchEntry(placeholder_text="Search")
+        self.search = Gtk.SearchEntry(css_classes=["dark-blur-background"], placeholder_text="Search")
         self.search.connect("search-changed", self.__class__.search_changed)
         self.search.connect("activate", View.do_search)
         self.stack.connect("notify::visible-child", self.__class__.update_search)
@@ -2483,7 +2483,7 @@ button.playlist { transition: all 0.3s ease-in-out; padding: 0px; }
 button.single,
 button.playlist { border-radius: 13px; }
 
-find > entry { margin-top: 10px; border-radius: 9px; backdrop-filter: blur(20px) brightness(0.9); background: color-mix(in srgb, var(--window-bg-color) 35%, transparent); }
+find > entry { margin-top: 10px; border-radius: 9px; }
 
 sheet,
 window,

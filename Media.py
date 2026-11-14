@@ -1140,7 +1140,7 @@ class Artist(ListObject):
     @staticmethod
     def changed(self, p):
         if p.get_name() == "cover-paintable": return
-        v = getattr(self, p.get_name(), None)
+        v = getattr(self, p.get_name().replace("-", "_"), None)
         p = p.get_nick() or p.get_name().replace("-", " ").title()
         t = self.__class__.__name__ + "s"
         c = "Name = ?"
@@ -1477,7 +1477,7 @@ class Playlist(ListObject):
     @staticmethod
     def changed(self, p):
         if p.get_name() == "cover-paintable": return
-        v = getattr(self, p.get_name(), None)
+        v = getattr(self, p.get_name().replace("-", "_"), None)
         p = p.get_nick() or p.get_name().replace("-", " ").title()
         t = self.__class__.__name__ + "s"
         c = "Name = ?"
@@ -1927,10 +1927,9 @@ class Editor(PopupDialog):
         self.hidden.set_active(media.hidden)
         for n, i in enumerate(self.rows.values()): i.set_visible(True)
 
-class Window(Window):
+class Window(DataWindow):
     back_button = GObject.Property(type=bool, default=False)
 
-    show_hidden = GObject.Property(type=bool, default=False)
     search = GObject.Property(type=Gtk.SearchEntry)
     search_mode_enabled = GObject.Property(type=bool, default=False)
     breakpoint = GObject.Property(type=Adw.Breakpoint)
@@ -1943,10 +1942,30 @@ class Window(Window):
 
     drop_target_gtypes = (ArtistItem, PlaylistItem, Gdk.FileList, Gio.File, str)
 
-    def __init__(self, _id=None):
-        super().__init__()
-        if not _id: App.default.data.set_default(table="Windows", conditions="ID = ?", conds=(self.get_id(),), names=("ID", ), values=(self.get_id(),))
-        elif self.get_id() != _id: App.default.data.update(table="Windows", column="ID", value=self.get_id(), conditions="ID = ?", conds=(_id,))
+    fullscreen = GObject.Property(type=bool, default=False)
+    show_hidden = GObject.Property(type=bool, default=False)
+    player_width = GObject.Property(type=int, default=200)
+    player_height = GObject.Property(type=int, default=200)
+    player_x = GObject.Property(type=int, default=0)
+    player_y = GObject.Property(type=int, default=0)
+
+    current_uri = GObject.Property(type=str, default="", nick="URI")
+    current_playlist = GObject.Property(type=str, nick="Playlist", default=Playlist.default[0])
+    shuffle = GObject.Property(type=bool, default=False)
+    loop = GObject.Property(type=str, default="None")
+
+    volume = GObject.Property(type=float, default=0.8)
+    speed = GObject.Property(type=float, default=1.0)
+
+    ignore_video = GObject.Property(type=bool, default=False)
+    ignore_audio = GObject.Property(type=bool, default=False)
+    ignore_subtitle = GObject.Property(type=bool, default=False)
+    ignore_cover = GObject.Property(type=bool, default=False)
+
+    properties = ["hide_on_close", "fullscreen", "show_hidden", "player_width", "player_height", "player_x", "player_y", "current_uri", "current_playlist", "shuffle", "loop", "volume", "speed", "ignore_video", "ignore_audio", "ignore_subtitle", "ignore_cover"]
+
+    def __init__(self, data=None):
+        super().__init__(data)
         self.breakpoint = Adw.Breakpoint.new(Adw.BreakpointCondition.new_length(Adw.BreakpointConditionLengthType.MAX_WIDTH, 400, Adw.LengthUnit.PX))
         self.add_breakpoint(self.breakpoint)
         self.stack = Adw.ViewStack(vhomogeneous=False, vexpand=True)
@@ -1976,8 +1995,6 @@ class Window(Window):
         find = Gtk.Revealer(css_name="find", transition_type=Gtk.RevealerTransitionType.SLIDE_DOWN, transition_duration=300, halign=Gtk.Align.CENTER, child=self.search, valign=Gtk.Align.START)
         self.bind_property("search-mode-enabled", find, "reveal-child", SYNC_BIND)
         toolbar.get_content().add_overlay(find)
-        for i in ("Maximized", "Hide On Close", "Show Hidden"): self.bind_setting(self, i, False)
-        for i in ("Default Width", "Default Height"): self.bind_setting(self, i, 100)
         self.player = Player(self)
         switcher = Adw.InlineViewSwitcher(halign=Gtk.Align.CENTER, hexpand=True, display_mode=Adw.InlineViewSwitcherDisplayMode.BOTH, stack=self.stack)
         self.breakpoint.add_setter(switcher, "display-mode", Adw.InlineViewSwitcherDisplayMode.ICONS)
@@ -1998,18 +2015,21 @@ class Window(Window):
         self.add_action(Gio.SimpleAction.new("context", get_variant("str").get_type()))
         self.lookup_action("context").connect("activate", Context.activate, self)
         self.status()
-        self.bind_setting(self.player, "Volume", 0.8)
-        self.bind_setting(self.player, "Speed", 1.0)
-        for i in ("width", "height"): self.bind_setting(self.player.overlay, f"Player {i.title()}", 200, i)
-        for i in ("x", "y"): self.bind_setting(self.player.overlay, f"Player {i.upper()}", 0, i)
-        self.bind_setting(self.playlist, "Playlist", Playlist.default[0])
-        self.bind_setting(self.playlist, "Shuffle", False)
-        self.bind_setting(self.playlist, "Loop", "None")
-        for i in ("Video", "Audio", "Subtitle", "Cover"): self.bind_setting(self.player, f"Ignore {i}", False)
+        for i in ("show-hidden", "hide-on-close"):
+            self.add_stateful_actions((i, get_variant(self.get_property(i))))
+            self.bind_property(i, self.lookup_action(i), "state", SYNC_BIND, variant_bind, unpack_bind)
+        for i in ("volume", "speed", "fullscreen"): self.bind_property(i, self.player, i, SYNC_BIND)
+        for i in ("x", "y", "width", "height"): self.bind_property("player-" + i, self.player.overlay, i, SYNC_BIND)
+        self.bind_property("current-playlist", self.playlist, "playlist", SYNC_BIND)
+        for i in ("shuffle", "loop"): self.bind_property(i, self.playlist, i, SYNC_BIND)
+        for i in ("video", "audio", "subtitle", "cover"):
+            i = "ignore-" + i
+            self.bind_property(i, self.player, i, SYNC_BIND)
+            self.add_stateful_actions((i, get_variant(getattr(self, i.replace("-", "_")))))
+            self.bind_property(i, self.lookup_action(i), "state", SYNC_BIND, variant_bind, unpack_bind)
         self.playlist.set_playlist(self.playlist.playlist)
         self.present()
-        self.bind_setting(self.player, "Fullscreen", False)
-        Task.invoke(self.bind_setting, self.player, "URI", "")
+        Task.invoke(self.bind_property, "current-uri", self.player, "uri", SYNC_BIND)
 
     @staticmethod
     def update_search(s, p=None):
@@ -2119,10 +2139,6 @@ class Window(Window):
             else:
                 g = Playlist.default[0]
         if s: self.playlist.set_playlist(g)
-
-    def bind_setting(self, widget, i, v, p=None):
-        p = p or i.lower().replace(" ", "-")
-        self.get_application().data.persist_action(self, i, v, "Windows", i, "ID = ?", (self.get_id(),)).bind_property("state", widget, p, SYNC_BIND, unpack_bind, variant_bind)
 
     def clear_drop(self, b=True):
         if getattr(self, "highlight", False): self.highlight.remove_css_class("highlight")
@@ -2363,7 +2379,7 @@ class Window(Window):
             if v == Gdk.KEY_period:
                 call(m="Seek", p=(1e5,))
                 return True
-        if v == Gdk.KEY_f: self.lookup_action("maximized").activate()
+        if v == Gdk.KEY_f: self.unmaximize() if self.is_maximized() else self.maximize()
 
 class App(App):
     artists = GObject.Property(type=List)
@@ -2376,17 +2392,13 @@ class App(App):
 
     def activate(a):
         if a.get_active_window(): return a.get_active_window().present()
+        for i in ("All Media", "Most Played", "Recently Added"):
+            if not App.default.data.exists(table="Playlists", conditions="Name = ?", conds=(i,)): App.default.data.new(table="Playlists", names=("Name", ), values=(i,))
         a.covers = {}
         a.artists = List(Artist, unique="name", list=a.data.read(table="Artists", return_dict=True, force_tuple=True), static=True)
         a.playlists = List(Playlist, unique="name", list=a.data.read(table="Playlists", return_dict=True, force_tuple=True), static=True)
         a.medias = List(Media, unique="uri", list=a.data.read(table="Medias", return_dict=True, force_tuple=True), static=True)
-        d = App.default.data.read(table="Windows", column="ID")
-        if isinstance(d, int):
-            d = [d]
-        if not d:
-            App.default.data.set_default(table="Windows", conditions="ID = '1'", values=(1,), names=("ID",))
-            d = [1]
-        for i in d: Window(i[0] if isinstance(i, tuple) else i)
+        Window.restore(new=True)
 
     def get_cover(self, uri):
         if not uri: return None
@@ -2408,14 +2420,7 @@ class App(App):
         if not Window.current: activate(App.default)
         Window.current.open_files([i if isinstance(i, str) else i.get_uri() for i in files])
 
-DATA_INIT = (Artist, Playlist, Media, f"""
-CREATE TABLE IF NOT EXISTS Windows ('ID' INTEGER PRIMARY KEY AUTOINCREMENT, 'Default Width' INTEGER NOT NULL DEFAULT 360, 'Default Height' INTEGER NOT NULL DEFAULT 760, 'Hide On Close' INTEGER NOT NULL DEFAULT 0, 'Maximized' INTEGER NOT NULL DEFAULT 0, 'Fullscreen' INTEGER NOT NULL DEFAULT 0, 'Show Hidden' INTEGER NOT NULL DEFAULT 0, 'Player Width' INTEGER NOT NULL DEFAULT 200, 'Player Height' INTEGER NOT NULL DEFAULT 200, 'Player X' INTEGER NOT NULL DEFAULT 0, 'Player Y' INTEGER NOT NULL DEFAULT 0, 'URI' TEXT, 'Playlist' TEXT DEFAULT '{Playlist.default[0]}', 'Shuffle' INTEGER NOT NULL DEFAULT 0, 'Loop' TEXT NOT NULL DEFAULT 'None', 'Volume' INTEGER NOT NULL DEFAULT 0.8, 'Speed' INTEGER NOT NULL DEFAULT 1.0, 'Ignore Video' INTEGER NOT NULL DEFAULT 0, 'Ignore Audio' INTEGER NOT NULL DEFAULT 0, 'Ignore Subtitle' INTEGER NOT NULL DEFAULT 0, 'Ignore Cover' INTEGER NOT NULL DEFAULT 0);
-INSERT OR IGNORE INTO Playlists (Name)
-VALUES
-    ('All Media'),
-    ('Most Played'),
-    ('Recently Added');
-""")
+DATA_INIT = (Artist, Playlist, Media, Window)
 
 INFO = {
     "ID": "io.github.kirukomaru11.Media",

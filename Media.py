@@ -1250,6 +1250,7 @@ class PlaylistView(View):
     search_filter = GObject.Property(type=Gtk.AnyFilter)
     hidden_filter = GObject.Property(type=Gtk.BoolFilter)
     filter = GObject.Property(type=Gtk.EveryFilter)
+    current_filter = GObject.Property(type=Gtk.EveryFilter)
 
     random_sorter = GObject.Property(type=Gtk.Sorter)
     playlist_sorter = GObject.Property(type=Gtk.Sorter)
@@ -1284,7 +1285,7 @@ class PlaylistView(View):
         self.playlist_sorter = Gtk.NumericSorter(expression=Gtk.ClosureExpression.new(int, self.__class__.playlist_sort_expression, [Gtk.PropertyExpression.new(self.__class__, Gtk.ObjectExpression.new(self), "order")]))
         self.played_sorter = Gtk.NumericSorter(expression=Gtk.PropertyExpression.new(Media, None, "use-count"), sort_order=Gtk.SortType.DESCENDING)
         self.id_sorter = Gtk.NumericSorter(expression=Gtk.PropertyExpression.new(Media, None, "id"), sort_order=Gtk.SortType.ASCENDING)
-        self.filter = Gtk.EveryFilter()
+        self.filter, self.current_filter = Gtk.EveryFilter(), Gtk.EveryFilter()
         self.search_filter = Gtk.AnyFilter()
         for i in ("Artists", "Name", "URI"):
             s = Gtk.StringFilter.new(Gtk.PropertyExpression.new(Media, None, i.lower()))
@@ -1293,10 +1294,10 @@ class PlaylistView(View):
         self.hidden_filter = Gtk.BoolFilter(invert=True, expression=Gtk.PropertyExpression.new(Media, None, "hidden"))
         window.connect("notify::show-hidden", self.__class__.hidden_changed)
         self.filter.append(self.search_filter)
-        filter_list = Gtk.FilterListModel(filter=self.filter)
+        filter_list = Gtk.FilterListModel(filter=self.current_filter)
         sort_list = Gtk.SortListModel(model=filter_list)
         self.bind_property("sorter", sort_list, "sorter", DEFAULT_BIND)
-        self.selection.set_model(sort_list)
+        self.selection.set_model(Gtk.FilterListModel(model=sort_list, filter=self.filter))
         self.bind_property("model", filter_list, "model", DEFAULT_BIND)
         self.listview = listview
         filter_list.connect("items-changed", self.__class__.update, self)
@@ -1407,13 +1408,11 @@ class PlaylistView(View):
     def set_playlist(self, playlist=""):
         if isinstance(playlist, Playlist):
             playlist = playlist.name
-        for n in range(self.filter.get_property("n-items")):
-            f = self.filter.get_item(n)
-            if not f in (self.hidden_filter, self.search_filter): self.filter.remove(n)
+        for n in range(self.current_filter.get_property("n-items")): self.current_filter.remove(n)
         self.playlist = playlist or "Playlist"
         self.order = {}
         icon = "music-playlist-symbolic"
-        if playlist: self.filter.append(self.playlist_filter)
+        if playlist: self.current_filter.append(self.playlist_filter)
         if playlist == Playlist.default[0]:
             icon = "folder-music-symbolic"
             self.sorter = self.random_sorter if self.shuffle else self.id_sorter
@@ -2238,7 +2237,8 @@ class Window(DataWindow):
                     i.id = n + 1
             l.replace(ll)
         elif isinstance(w, MediaWidget):
-            l = [self.playlist.selection.get_item(n) for n in range(self.playlist.selection.get_n_items())]
+            m = self.playlist.selection.get_model().get_model()
+            l = [m.get_item(n) for n in range(m.get_n_items())]
             v = [self.get_application().medias[i] for i in v]
             v = [i for i in v if i and i in l]
             start = l.index(w.item)

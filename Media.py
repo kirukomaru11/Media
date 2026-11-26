@@ -2417,7 +2417,7 @@ class App(App):
                 if i.cover == p.uri: Task.invoke(i.set_property, "cover-paintable", p)
 
     def file_open(a, files, *_):
-        if not Window.current: activate(App.default)
+        if not Window.current: App.default.activate()
         Window.current.open_files([i if isinstance(i, str) else i.get_uri() for i in files])
 
 DATA_INIT = (Artist, Playlist, Media, Window)

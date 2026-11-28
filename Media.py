@@ -1276,7 +1276,7 @@ class PlaylistView(View):
 
     def __init__(self, window):
         listview = Gtk.ListView(css_classes=("navigation-sidebar",), model=Gtk.MultiSelection())
-        View.__init__(self, window, child=Gtk.ScrolledWindow(child=listview))
+        View.__init__(self, window, css_name="playlistview", child=Gtk.ScrolledWindow(child=listview))
         self.order = {}
         self.selection = listview.get_model()
         self.random_sorter = Gtk.CustomSorter()
@@ -2471,10 +2471,10 @@ window #Artists viewport > wrap-box { margin: 10px; }
 
 window.media-window { min-width: 290px; min-height: 300px; }
 
-listview row { padding: 0px; margin-bottom: 6px; }
-listview row:selected label { font-weight: bold; }
-.colored listview row:selected { background-color: color-mix(in srgb, var(--color-2) 45%, transparent); }
-listview media-widget { border-radius: 8px; padding: 10px 12px; }
+playlistview listview row { padding: 0px; margin-bottom: 6px; }
+playlistview listview row:selected label { font-weight: bold; }
+.colored playlistview listview row:selected { background-color: color-mix(in srgb, var(--color-2) 45%, transparent); }
+playlistview listview media-widget { border-radius: 8px; padding: 10px 12px; }
 
 :drop(active) .highlight { box-shadow: 0 0 0 2px var(--accent-bg-color); }
 
